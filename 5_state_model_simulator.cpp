@@ -4,12 +4,17 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <iostream>
 
 int main(){
     char* args[] = {NULL};
     pid_t new_state = fork();
     if (new_state == 0){
+        int new_ready_pipe = mkfifo("new2ready", 0666);
+        if (new_ready_pipe < 0) perror("Error: ");
+        else std::cout<<"new2ready pipe created.\n";
         execvp("./new_state", args);
         std::cout<<"NEW STATE EXEC FAILED\n";
     }
