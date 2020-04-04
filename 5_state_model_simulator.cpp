@@ -50,6 +50,8 @@ int main(){
         else if (ready_state > 0){
             pid_t running_state = fork();
             if (running_state == 0){
+                if (createNewFifo("running2ready", 0666) < 0) exit(1);
+                else std::cout<<"running2ready pipe created.\n";
                 execvp("./running_state", args);
                 std::cout<<"RUNNING STATE EXEC FAILED\n";
             }
