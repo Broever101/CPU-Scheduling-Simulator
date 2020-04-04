@@ -12,7 +12,7 @@ int main(int argc, char* argv[]){
     else{
         char str[256];
         read(ready_new, str, sizeof(str));
-        std::cout<<str<<" received in ready.\n";
+        std::cout<<str<<" -- received in ready.\n";
         close(ready_new);
     }
 }
