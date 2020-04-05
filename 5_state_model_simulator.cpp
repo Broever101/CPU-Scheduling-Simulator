@@ -31,44 +31,49 @@ int createNewFifo( const char *fifoName, int permissions ){
 }
 
 int main(){
+    if (createNewFifo("new2ready", 0666) < 0) exit(1);
+    else std::cout<<"new2ready pipe created.\n";
+    if (createNewFifo("ready2running", 0666) < 0) exit(1);
+    else std::cout<<"ready2running pipe created.\n";
+    if (createNewFifo("running2ready", 0666) < 0) exit(1);
+    else std::cout<<"running2ready pipe created.\n";
     char* args[] = {NULL};
     pid_t new_state = fork();
     if (new_state == 0){
-        if (createNewFifo("new2ready", 0666) < 0) exit(1);
-        else std::cout<<"new2ready pipe created.\n";
         execvp("./new_state", args);
         std::cout<<"NEW STATE EXEC FAILED\n";
     }
     else if (new_state > 0){
+        //wait(NULL);
         pid_t ready_state = fork();
         if (ready_state == 0){
-            if (createNewFifo("ready2running", 0666) < 0) exit(1);
-            else std::cout<<"ready2running pipe created.\n";
             execvp("./ready_state", args);
             std::cout<<"READY STATE EXEC FAILED\n";
         }
         else if (ready_state > 0){
+            //wait(NULL);
             pid_t running_state = fork();
             if (running_state == 0){
-                if (createNewFifo("running2ready", 0666) < 0) exit(1);
-                else std::cout<<"running2ready pipe created.\n";
                 execvp("./running_state", args);
                 std::cout<<"RUNNING STATE EXEC FAILED\n";
             }
             else if (running_state > 0){
+                //wait(NULL);
                 pid_t blocked_state = fork();
                 if (blocked_state == 0){
                     execvp("./blocked_state", args);
                     std::cout<<"BLOCKED STATE EXEC FAILED\n";
                 }
                 else if (blocked_state > 0){
+                    //wait(NULL);
                     pid_t exit_state = fork();
                     if (exit_state == 0){
                         execvp("./exit_state", args);
                         std::cout<<"EXIT STATE EXEC FAILED\n";
                     }
                     else if (exit_state > 0){
-                        std::cout<<"ALL STATE PROCESSES CREATED\n";
+                        wait(NULL);
+                        //std::cout<<"ALL STATE PROCESSES CREATED\n";
                     }
                 }
             }
