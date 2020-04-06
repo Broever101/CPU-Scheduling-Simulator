@@ -41,6 +41,7 @@ void writeToPipe(int pipe_name, std::string& message){
 
 std::string readFromPipe(int pipe_name){
     char msg[256];
-    read(pipe_name, msg, sizeof(msg));
+    size_t bytes = read(pipe_name, msg, sizeof(msg));
+    msg[bytes] = '\0';
     return msg;
 }
