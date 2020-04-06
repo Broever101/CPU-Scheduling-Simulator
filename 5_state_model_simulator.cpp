@@ -8,7 +8,6 @@
 #include <fcntl.h>
 #include <iostream>
 
-
 int createNewFifo( const char *fifoName, int permissions ){
     struct stat stats;
     if ( stat( fifoName, &stats ) < 0 ){
@@ -31,12 +30,13 @@ int createNewFifo( const char *fifoName, int permissions ){
 }
 
 int main(){
-    if (createNewFifo("new2ready", 0666) < 0) exit(1);
-    else std::cout<<"new2ready pipe created.\n";
-    if (createNewFifo("ready2running", 0666) < 0) exit(1);
-    else std::cout<<"ready2running pipe created.\n";
-    if (createNewFifo("running2ready", 0666) < 0) exit(1);
-    else std::cout<<"running2ready pipe created.\n";
+    std::string pipe_names[6] = {"new2ready", "ready2running", "running2ready",
+                                "running2block", "block2ready", "running2exit"};
+    for (auto pipe: pipe_names){
+        if (createNewFifo(pipe.c_str(), 0666) < 0) exit(1);
+        else std::cout<<pipe<<" pipe created.\n";
+    }
+
     char* args[] = {NULL};
     pid_t new_state = fork();
     if (new_state == 0){
@@ -44,28 +44,28 @@ int main(){
         std::cout<<"NEW STATE EXEC FAILED\n";
     }
     else if (new_state > 0){
-        //wait(NULL);
+
         pid_t ready_state = fork();
         if (ready_state == 0){
             execvp("./ready_state", args);
             std::cout<<"READY STATE EXEC FAILED\n";
         }
         else if (ready_state > 0){
-            //wait(NULL);
+            
             pid_t running_state = fork();
             if (running_state == 0){
                 execvp("./running_state", args);
                 std::cout<<"RUNNING STATE EXEC FAILED\n";
             }
             else if (running_state > 0){
-                //wait(NULL);
+                
                 pid_t blocked_state = fork();
                 if (blocked_state == 0){
                     execvp("./blocked_state", args);
                     std::cout<<"BLOCKED STATE EXEC FAILED\n";
                 }
                 else if (blocked_state > 0){
-                    //wait(NULL);
+                    
                     pid_t exit_state = fork();
                     if (exit_state == 0){
                         execvp("./exit_state", args);
