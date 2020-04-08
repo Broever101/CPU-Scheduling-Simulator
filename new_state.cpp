@@ -9,51 +9,27 @@
 #include <errno.h>
 #include <vector>
 #include <sstream>
+#include "Process.h"
 
 std::string readFromFile(const int&);
 void writeToPipe(int, std::string&);
 
-struct Process{
-    std::string proc_name;
-    size_t arrival;
-    size_t burst;
-    short priority = 0;
-    Process(std::string proc, size_t arr, size_t burst):
-    proc_name(proc), arrival(arr), burst(burst){}
-};
-
 typedef std::vector<std::string> s_vector;
 typedef std::vector<Process*> p_vector;
 
-
-
-void split(std::string data, s_vector& tokens){
-    std::istringstream stream(data);
-    std::string token;
-    while (stream >> token)
-        tokens.push_back(token);
-}
-
 void createProcs(std::string data, std::string& algorithm, p_vector& procs){
     std::istringstream stream(std::move(data));
-    //std::cout<<stream.str()<<std::endl;
     stream >> algorithm;
     std::string proc; 
     size_t arr, burst;
     while(stream>>proc){
-        //stream>>proc;
         stream>>arr;
         stream>>burst;
-        //std::cout<<proc<<std::endl;
         procs.push_back(new Process(proc, arr, burst));
-        //std::cout<<proc<<std::endl;
     }
-    //std::cout<<procs[4]->proc_name<<std::endl;
 }
 
 int main(int argc, char* argv[]){
-    //int new_ready = open("new2ready", O_WRONLY);
-    //if (new_ready < 0) exit(1);
     s_vector tokens;
     std::string file_path = "processes/Sample_2_FCFS.txt";
     int fd = open(file_path.c_str(), O_RDONLY);
