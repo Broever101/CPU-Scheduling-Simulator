@@ -17,39 +17,29 @@ std::string readFromPipe(int);
 void createProcs(std::string data, p_vector&);
 
 int main(int argc, char* argv[]){
-    int ready_new = open("new2ready", O_RDONLY);
-    if (ready_new < 0) std::cout<<"Could not open new2ready in ready.\n";
-    else{
-        std::string str = readFromPipe(ready_new);
-        std::cout<<str<<" -- received in ready.\n";
-        str = readFromPipe(ready_new);
-        p_vector procs;
-        createProcs(str, procs);
-        str = readFromPipe(ready_new);
-        createProcs(str, procs);
-        std::cout<<"Procs received in ready:\n";
-        for (auto i: procs){
-            std::cout<<i->proc_name<<std::endl;
-            std::cout<<i->arrival<<std::endl;
-            std::cout<<i->burst<<std::endl;
-        }
-        close(ready_new);
+    int new_ready = open("new2ready", O_RDONLY);
+    if (new_ready < 0) std::cout<<"Could not open new2ready in ready.\n";
+    
+    std::string scheduling_algo = readFromPipe(new_ready);
+    p_vector procs;
+    std::string data = readFromPipe(new_ready);
+    while (data != "closed"){
+        createProcs(data, procs);
+        std::cout<<"Process scheduled:\n";
+        std::cout<<(*procs.rbegin())->proc_name<<std::endl;
+        data = readFromPipe(new_ready);
     }
-    // int ready_running = open("ready2running", O_WRONLY);
-    // if (ready_running < 0) std::cout<<"Could not open ready2running in ready.\n";
-    // else{
-    //     std::string str1 = "SMOKE THIS PIPE RUNNING!";
-    //     writeToPipe(ready_running, str1);
-    //     close(ready_running);
-    // }
+    std::cout<<"CLOSED.\n";
+    close(new_ready);
+    exit(0);
+}
 
-    // int running_ready = open("running2ready", O_RDONLY);
-    // if (running_ready < 0) std::cout<<"Could not open running2ready in ready.\n";
-    // else{
-    //     std::string message = readFromPipe(running_ready);
-    //     std::cout<<message<<" -- received in ready.\n";
-    //     close(running_ready);
-    // } 
+void printVector(const p_vector& procs){
+    for (auto i: procs){
+        std::cout<<i->proc_name<<std::endl;
+        std::cout<<i->arrival<<std::endl;
+        std::cout<<i->burst<<std::endl;
+    }
 }
 
 void createProcs(std::string data, p_vector& procs){
@@ -63,13 +53,14 @@ void createProcs(std::string data, p_vector& procs){
     }
 }
 
-void writeToPipe(int pipe_name, std::string& message){
-    write(pipe_name, message.c_str(), message.size()+1);
+void writeToPipe(int pipe_fd, std::string& message){
+    write(pipe_fd, message.c_str(), message.size()+1);
 }
 
-std::string readFromPipe(int pipe_name){
+std::string readFromPipe(int pipe_fd){
     char msg[256];
-    size_t bytes = read(pipe_name, msg, sizeof(msg));
+    size_t bytes = read(pipe_fd, msg, sizeof(msg));
+    if (bytes == 0) return "closed";
     msg[bytes] = '\0';
     return msg;
 }

@@ -26,16 +26,22 @@ int main(int argc, char* argv[]){
     std::string scheduling_algo;
     std::string file_path = "processes/Sample_2_FCFS.txt";
     int proc_file = open(file_path.c_str(), O_RDONLY);
-    if (proc_file < 0) perror("Error ");
+    if (proc_file < 0) {
+        std::cout<<file_path<<std::endl;
+        perror("Error ");
+    }
     int new_ready = open("new2ready", O_WRONLY);
-    if (new_ready < 0) perror("Error: ");
+    if (new_ready < 0) {
+        std::cout<<"new2ready"<<std::endl;
+        perror("Error ");
+    }
     
     std::string data = readFromFile(proc_file);
     close(proc_file);
 
     createProcs(std::move(data), scheduling_algo, procs);
 
-    printVector(procs);
+    //printVector(procs);
 
     std::stable_sort(procs.begin(), procs.end(),
     [] (auto proc1, auto proc2){
@@ -43,15 +49,23 @@ int main(int argc, char* argv[]){
             return true;
         else if (proc1->proc_name < proc2->proc_name)
             return true;
-    });    
+    }); 
+
+    printVector(procs);       
 
     writeToPipe(new_ready, scheduling_algo);
-    std::string packet = createPacket(procs[0]);
 
-    writeToPipe(new_ready, packet);
-    packet = createPacket(procs[1]);
-    writeToPipe(new_ready, packet);
-    
+    size_t time = 0;
+    for (auto i: procs){
+        while(time != i->arrival){
+            sleep(1);
+            ++time;
+        }
+        std::string packet = createPacket(i);
+        writeToPipe(new_ready, packet);
+    }
+    std::cout<<"NEW CLOSED.\n";
+    close(new_ready);
 }
 
 std::string readFromFile(const int& fd){
