@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <vector>
 #include <sstream>
+#include <algorithm>
 #include "Process.h"
 
 
@@ -18,7 +19,7 @@ std::string readFromFile(const int&);
 void writeToPipe(int, std::string&);
 std::string createPacket(Process*);
 void createProcs(std::string, std::string&, p_vector&);
-
+void printVector(const p_vector&);
 
 int main(int argc, char* argv[]){
     p_vector procs;
@@ -34,6 +35,16 @@ int main(int argc, char* argv[]){
 
     createProcs(std::move(data), scheduling_algo, procs);
 
+    printVector(procs);
+
+    std::stable_sort(procs.begin(), procs.end(),
+    [] (auto proc1, auto proc2){
+        if (proc1->arrival < proc2->arrival)
+            return true;
+        else if (proc1->proc_name < proc2->proc_name)
+            return true;
+    });    
+
     writeToPipe(new_ready, scheduling_algo);
     std::string packet = createPacket(procs[0]);
 
@@ -48,6 +59,14 @@ std::string readFromFile(const int& fd){
     size_t bytes = read(fd, data, sizeof(data));
     data[bytes] = '\0';
     return std::move(data);
+}
+
+void printVector(const p_vector& procs){
+    for (auto i: procs){
+        std::cout<<i->proc_name<<std::endl;
+        std::cout<<i->arrival<<std::endl;
+        std::cout<<i->burst<<std::endl;
+    }
 }
 
 std::string createPacket(Process* proc){
