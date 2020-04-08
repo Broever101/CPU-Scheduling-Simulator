@@ -11,35 +11,36 @@
 #include <sstream>
 #include "Process.h"
 
-std::string readFromFile(const int&);
-void writeToPipe(int, std::string&);
 
-typedef std::vector<std::string> s_vector;
 typedef std::vector<Process*> p_vector;
 
-void createProcs(std::string data, std::string& algorithm, p_vector& procs){
-    std::istringstream stream(std::move(data));
-    stream >> algorithm;
-    std::string proc; 
-    size_t arr, burst;
-    while(stream>>proc){
-        stream>>arr;
-        stream>>burst;
-        procs.push_back(new Process(proc, arr, burst));
-    }
-}
+std::string readFromFile(const int&);
+void writeToPipe(int, std::string&);
+std::string createPacket(Process*);
+void createProcs(std::string, std::string&, p_vector&);
+
 
 int main(int argc, char* argv[]){
-    s_vector tokens;
-    std::string file_path = "processes/Sample_2_FCFS.txt";
-    int fd = open(file_path.c_str(), O_RDONLY);
-    if (fd < 0) perror("Error :");
-    std::string data = readFromFile(fd);
-    std::string algorithm;
     p_vector procs;
-    createProcs(std::move(data), algorithm, procs);
-    for (auto i : procs) std::cout<<i->proc_name<<"\n"<<i->arrival<<"\n"<<i->burst<<std::endl;
-    close(fd);
+    std::string scheduling_algo;
+    std::string file_path = "processes/Sample_2_FCFS.txt";
+    int proc_file = open(file_path.c_str(), O_RDONLY);
+    if (proc_file < 0) perror("Error ");
+    int new_ready = open("new2ready", O_WRONLY);
+    if (new_ready < 0) perror("Error: ");
+    
+    std::string data = readFromFile(proc_file);
+    close(proc_file);
+
+    createProcs(std::move(data), scheduling_algo, procs);
+
+    writeToPipe(new_ready, scheduling_algo);
+    std::string packet = createPacket(procs[0]);
+
+    writeToPipe(new_ready, packet);
+    packet = createPacket(procs[1]);
+    writeToPipe(new_ready, packet);
+    
 }
 
 std::string readFromFile(const int& fd){
@@ -49,6 +50,25 @@ std::string readFromFile(const int& fd){
     return std::move(data);
 }
 
-void writeToPipe(int pipe_name, std::string& message){
-    write(pipe_name, message.c_str(), message.size()+1);
+std::string createPacket(Process* proc){
+    return std::string(proc->proc_name + "\n" +
+                std::to_string(proc->arrival) + "\n" +
+                std::to_string(proc->burst));
+}
+
+void writeToPipe(int pipe_fd, std::string& message){
+    write(pipe_fd, message.c_str(), message.size()+1);
+}
+
+void createProcs(std::string data, std::string& algorithm, 
+                p_vector& procs){
+    std::istringstream stream(std::move(data));
+    stream >> algorithm;
+    std::string proc; 
+    size_t arr, burst;
+    while(stream>>proc){
+        stream>>arr;
+        stream>>burst;
+        procs.push_back(new Process(proc, arr, burst));
+    }
 }
