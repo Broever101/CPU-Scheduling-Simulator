@@ -62,10 +62,10 @@ int main(int argc, char* argv[]){
             sleep(1);
             ++time;
         }
+        std::cout<<"PROCESS DISPATCHED TO READY: "<<i->proc_name<<std::endl;
         std::string packet = createPacket(i);
         writeToPipe(new_ready, packet);
     }
-    std::cout<<"NEW CLOSED.\n";
     close(new_ready);
 }
 

@@ -27,25 +27,21 @@ int main(int argc, char* argv[]){
     std::string scheduling_algo = readFromPipe(new_ready);
     p_vector procs;
     std::string packet;
-    size_t time = 0;
+    //size_t time = 0;
+    int i = 0;
     std::string data = readFromPipe(new_ready);
-    while (data != "closed" && procs.size() != 0){
+    do {
         createProcs(data, procs);
-        std::cout<<"PROCESS ARRIVED:\n";
-        std::cout<<(*procs.rbegin())->proc_name<<std::endl;
-        while (time != procs.begin()->get()->arrival){
-            sleep(1);
-            ++time;
-        }
-        packet = createPacket(*(procs.begin()));
+        std::cout<<"PROCESS ARRIVED IN READY: "<<(*procs.rbegin())->proc_name<<std::endl;
+        packet = createPacket(*(procs.begin()+i));
         writeToPipe(ready_running, packet);
-        std::cout<<"PROCESS SCHEDULED: "<<(*procs.begin())->proc_name<<std::endl;
-        procs.erase(procs.begin());
-        std::cout<<(*procs.rbegin())->proc_name<<std::endl;
+        std::cout<<"PROCESS DISPATCHED TO RUNNING: "<<(*(procs.begin()+i))->proc_name<<std::endl;
+        //procs.erase(procs.begin());
         data = readFromPipe(new_ready);
-    }
-    std::cout<<"CLOSED.\n";
+        ++i;
+    }while (data != "closed" && !procs.empty());
     close(new_ready);
+    close(ready_running);
     exit(0);
 }
 
