@@ -9,15 +9,16 @@
 #include <errno.h>
 #include <vector>
 #include <sstream>
+#include <memory>
 #include <algorithm>
 #include "Process.h"
 
 
-typedef std::vector<Process*> p_vector;
+typedef std::vector<std::shared_ptr<Process>> p_vector;
 
 std::string readFromFile(const int&);
 void writeToPipe(int, std::string&);
-std::string createPacket(Process*);
+std::string createPacket(const std::shared_ptr<Process>&);
 void createProcs(std::string, std::string&, p_vector&);
 void printVector(const p_vector&);
 
@@ -83,7 +84,7 @@ void printVector(const p_vector& procs){
     }
 }
 
-std::string createPacket(Process* proc){
+std::string createPacket(const std::shared_ptr<Process>& proc){
     return std::string(proc->proc_name + "\n" +
                 std::to_string(proc->arrival) + "\n" +
                 std::to_string(proc->burst));
@@ -102,6 +103,6 @@ void createProcs(std::string data, std::string& algorithm,
     while(stream>>proc){
         stream>>arr;
         stream>>burst;
-        procs.push_back(new Process(proc, arr, burst));
+        procs.push_back(std::make_shared<Process>(proc, arr, burst));
     }
 }

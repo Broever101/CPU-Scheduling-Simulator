@@ -9,8 +9,9 @@
 #include <sstream>
 #include "Process.h"
 #include <string.h>
+#include <memory>
 
-typedef std::vector<Process*> p_vector;
+typedef std::vector<std::shared_ptr<Process>> p_vector;
 
 void writeToPipe(int, std::string&);
 std::string readFromPipe(int);
@@ -49,7 +50,7 @@ void createProcs(std::string data, p_vector& procs){
     while(stream>>proc){
         stream>>arr;
         stream>>burst;
-        procs.push_back(new Process(proc, arr, burst));
+        procs.push_back(std::make_shared<Process>(proc, arr, burst));
     }
 }
 
