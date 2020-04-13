@@ -41,8 +41,7 @@ int main(int argc, char* argv[]){
     close(proc_file);
 
     createProcs(std::move(data), scheduling_algo, procs);
-
-    //printVector(procs);
+    writeToPipe(new_ready, scheduling_algo);
 
     std::stable_sort(procs.begin(), procs.end(),
     [] (auto proc1, auto proc2){
@@ -52,19 +51,15 @@ int main(int argc, char* argv[]){
             return true;
     }); 
 
-    printVector(procs);       
-
-    writeToPipe(new_ready, scheduling_algo);
-
     size_t time = 0;
     for (auto i: procs){
         while(time != i->arrival){
             sleep(1);
             ++time;
         }
-        std::cout<<"PROCESS DISPATCHED TO READY: "<<i->proc_name<<std::endl;
         std::string packet = createPacket(i);
         writeToPipe(new_ready, packet);
+        std::cout<<"PROCESS DISPATCHED TO READY: "<<i->proc_name<<std::endl;
     }
     close(new_ready);
 }
@@ -87,7 +82,10 @@ void printVector(const p_vector& procs){
 std::string createPacket(const std::shared_ptr<Process>& proc){
     return std::string(proc->proc_name + "\n" +
                 std::to_string(proc->arrival) + "\n" +
-                std::to_string(proc->burst));
+                std::to_string(proc->burst) + "\n" +
+                std::to_string(proc->remaining_burst) + "\n" +
+                std::to_string(proc->turnaround) + "\n" +
+                std::to_string(proc->waiting));
 }
 
 void writeToPipe(int pipe_fd, std::string& message){
@@ -103,6 +101,6 @@ void createProcs(std::string data, std::string& algorithm,
     while(stream>>proc){
         stream>>arr;
         stream>>burst;
-        procs.push_back(std::make_shared<Process>(proc, arr, burst));
+        procs.push_back(std::make_shared<Process>(proc, arr, burst, burst, 0, 0));
     }
 }

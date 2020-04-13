@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <sstream>
 #include <memory>
+#include <time.h>
 //#include <vector>
 #include "Process.h"
 
@@ -17,14 +18,31 @@ void writeToPipe(int, std::string&);
 void createProc(std::string, process&);
 
 int main(int argc, char* argv[]){
+    srand(time(NULL));
     process proc(nullptr);
     int ready_running = open("ready2running", O_RDONLY);
     if (ready_running < 0) std::cout<<"Could not open ready2running in running.\n";
-    
+    int running_block = open("running2block", O_WRONLY);
+    if (running_block < 0) std::cout<<"Could not open running2block in running.\n"; 
+    size_t burst;
     std::string data = readFromPipe(ready_running);
     while (data != "closed"){
         createProc(data, proc);
         std::cout<<"PROCESS SCHEDULED IN RUNNING: "<<proc->proc_name<<std::endl;
+        burst = 0;
+        while (burst < proc->burst){
+            sleep(1);
+            burst++;
+            if (burst == 5){
+                bool flag = rand() % 2;
+                if (flag){
+                    std::cout<<"PROCESS BLOCKED: "<<proc->proc_name<<std::endl;
+                    proc->burst -= burst;
+                    std::string process = createPacket(proc);
+                    writeToPipe(running_block, process);
+                }
+            }
+        }
         data = readFromPipe(ready_running);
     }
     close(ready_running);
@@ -40,6 +58,12 @@ void createProc(std::string data, process& procs){
     size_t arr, burst;
     stream>>proc>>arr>>burst;
     procs = std::make_shared<Process>(proc, arr, burst);   
+}
+
+std::string createPacket(const std::shared_ptr<Process>& proc){
+    return std::string(proc->proc_name + "\n" +
+                std::to_string(proc->arrival) + "\n" +
+                std::to_string(proc->burst));
 }
 
 std::string readFromPipe(int pipe_name){

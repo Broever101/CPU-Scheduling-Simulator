@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <vector>
 #include <sstream>
+#include <algorithm>
 #include "Process.h"
 #include <string.h>
 #include <memory>
@@ -15,40 +16,79 @@ typedef std::vector<std::shared_ptr<Process>> p_vector;
 
 void writeToPipe(int, std::string&);
 std::string readFromPipe(int);
+void incrementProcs(p_vector&);
 std::string createPacket(const std::shared_ptr<Process>&);
 void createProcs(std::string data, p_vector&);
 
 int main(int argc, char* argv[]){
-    int new_ready = open("new2ready", O_RDONLY);
+    int new_ready = open("new2ready", O_RDONLY, O_NONBLOCK);
     if (new_ready < 0) std::cout<<"Could not open new2ready in ready.\n";
     int ready_running = open("ready2running", O_WRONLY);
     if (ready_running < 0) std::cout<<"Could not open ready2running in ready.\n";
+    int running_ready = open("running2ready", O_RDONLY, O_NONBLOCK);
+    if (running_ready < 0) std::cout<<"Could not open running2ready in ready.\n";
+    int blocked_ready = open("block2ready", O_RDONLY, O_NONBLOCK);
+    if (blocked_ready < 0) std::cout<<"Could not open block2ready in ready.\n";
     
     std::string scheduling_algo = readFromPipe(new_ready);
     p_vector procs;
+    p_vector scheduled;
     std::string packet;
     //size_t time = 0;
-    int i = 0;
+
     std::string data = readFromPipe(new_ready);
+
     do {
         createProcs(data, procs);
-        std::cout<<"PROCESS ARRIVED IN READY: "<<(*procs.rbegin())->proc_name<<std::endl;
-        packet = createPacket(*(procs.begin()+i));
+        std::cout<<"PROCESS ARRIVED IN READY: "<<(*procs.begin())->proc_name<<std::endl;
+        packet = createPacket(*(procs.begin()));
         writeToPipe(ready_running, packet);
-        std::cout<<"PROCESS DISPATCHED TO RUNNING: "<<(*(procs.begin()+i))->proc_name<<std::endl;
-        //procs.erase(procs.begin());
-        data = readFromPipe(new_ready);
-        ++i;
-    }while (data != "closed" && !procs.empty());
+        std::cout<<"PROCESS DISPATCHED TO RUNNING: "<<(*procs.begin())->proc_name<<std::endl;
+        scheduled.push_back(*procs.begin());
+        procs.erase(procs.begin());
+        
+        do {
+            data = readFromPipe(blocked_ready);
+            if (data != "empty"){
+                createProcs(data, procs);
+                scheduled.erase(std::find(scheduled.begin(),
+                scheduled.end(), *procs.rbegin()));
+                if ((*procs.rbegin())->remaining_burst == 0)
+                    procs.pop_back();
+            }
+            data = readFromPipe(new_ready);
+            if (data != "empty")
+                createProcs(data, procs);
+            sleep(1);
+            incrementProcs(procs);
+            data = readFromPipe(running_ready);
+        }while (data == "empty");
+        createProcs(data, procs);
+        scheduled.erase(std::find(scheduled.begin(),scheduled.end(), *procs.rbegin()));
+        if ((*procs.rbegin())->remaining_burst == 0){
+            procs.pop_back();
+        }
+    }while (!procs.empty());
+    
     close(new_ready);
     close(ready_running);
     exit(0);
 }
 
+void incrementProcs(p_vector& procs){
+    for (auto i: procs){
+        i->turnaround++;
+        i->waiting++;
+    }
+}
+
 std::string createPacket(const std::shared_ptr<Process>& proc){
     return std::string(proc->proc_name + "\n" +
                 std::to_string(proc->arrival) + "\n" +
-                std::to_string(proc->burst));
+                std::to_string(proc->burst) + "\n" +
+                std::to_string(proc->remaining_burst) + "\n" +
+                std::to_string(proc->turnaround) + "\n" +
+                std::to_string(proc->waiting));
 }
 
 void printVector(const p_vector& procs){
@@ -62,11 +102,10 @@ void printVector(const p_vector& procs){
 void createProcs(std::string data, p_vector& procs){
     std::istringstream stream(std::move(data));
     std::string proc; 
-    size_t arr, burst;
+    size_t arr, burst, rem_burst, turn, wait;
     while(stream>>proc){
-        stream>>arr;
-        stream>>burst;
-        procs.push_back(std::make_shared<Process>(proc, arr, burst));
+        stream>>arr>>burst>>rem_burst>>turn>>wait;
+        procs.push_back(std::make_shared<Process>(proc, arr, burst, rem_burst, turn, wait));
     }
 }
 
@@ -78,6 +117,7 @@ std::string readFromPipe(int pipe_fd){
     char msg[256];
     size_t bytes = read(pipe_fd, msg, sizeof(msg));
     if (bytes == 0) return "closed";
+    if (bytes < 0) return "empty";
     msg[bytes] = '\0';
     return msg;
 }
