@@ -18,53 +18,80 @@ void writeToPipe(int, std::string&);
 std::string readFromPipe(int);
 void incrementProcs(p_vector&);
 std::string createPacket(const std::shared_ptr<Process>&);
-void createProcs(std::string data, p_vector&);
+void createProcs(std::string, p_vector&);
 void scheduleProc(const int&, p_vector&, p_vector&);
+void printVector(const p_vector&);
+void setNonBlock(const int&);
 
-int main(int argc, char* argv[]){
-    int new_ready = open("new2ready", O_RDONLY, O_NONBLOCK);
-    if (new_ready < 0) std::cout<<"Could not open new2ready in ready.\n";
+int main(int argc, char *argv[])
+{
+    int new_ready = open("new2ready", O_RDONLY);
+    if (new_ready < 0)
+        std::cout << "Could not open new2ready in ready.\n";
     int ready_running = open("ready2running", O_WRONLY);
-    if (ready_running < 0) std::cout<<"Could not open ready2running in ready.\n";
-    int running_ready = open("running2ready", O_RDONLY, O_NONBLOCK);
-    if (running_ready < 0) std::cout<<"Could not open running2ready in ready.\n";
-    int blocked_ready = open("block2ready", O_RDONLY, O_NONBLOCK);
-    if (blocked_ready < 0) std::cout<<"Could not open block2ready in ready.\n";
-    
+    if (ready_running < 0)
+        std::cout << "Could not open ready2running in ready.\n";
+    int running_ready = open("running2ready", O_RDONLY);
+    if (running_ready < 0)
+        std::cout << "Could not open running2ready in ready.\n";
+    int blocked_ready = open("block2ready", O_RDONLY);
+    if (blocked_ready < 0)
+        std::cout << "Could not open block2ready in ready.\n";
+
     std::string scheduling_algo = readFromPipe(new_ready);
-    
-    while (scheduling_algo == "empty")
-        scheduling_algo = readFromPipe(new_ready);
     
     p_vector procs;
     p_vector scheduled;
     std::string packet;
 
     std::string data = readFromPipe(new_ready);
-    while (data == "empty")
-        data = readFromPipe(new_ready);
+    //std::cout<<data<<std::endl;
+    //exit(0);
     createProcs(data, procs);
+    std::stable_sort(procs.begin(), procs.end(),
+                     [](auto proc1, auto proc2) {
+                         if (proc1->arrival > proc2->arrival)
+                             return true;
+                         else if (proc1->proc_name > proc2->proc_name)
+                             return true;
+                     });
+                     
     for (auto i : procs)
-        std::cout<<"READY: "<<i->proc_name<<"arrived from NEW.\n";
+        std::cout << "READY: " << i->proc_name << " arrived from NEW.\n";
     /* SORT THE PROC VECTOR IN DESCENDING ORDER HERE*/
-    scheduleProc(running_ready, procs, scheduled);
 
-    do {     
-        do {
+
+    scheduleProc(ready_running, procs, scheduled);
+    setNonBlock(blocked_ready);
+    setNonBlock(running_ready);
+    do
+    {
+        do
+        {   
             data = readFromPipe(new_ready);
-            if (data != "empty" || data != "closed"){
+            if (data != "empty" && data != "closed")
+            {
                 createProcs(data, procs);
-                std::cout<<"READY: "<<procs.rbegin()->get()->proc_name<<"arrived from NEW.\n";
+                std::cout << "READY: " << procs.rbegin()->get()->proc_name << " arrived from NEW.\n";
             }
             data = readFromPipe(blocked_ready);
-            if (data != "empty" || data != "closed"){
+            if (data != "empty" && data != "closed")
+            {
                 createProcs(data, procs);
                 scheduled.erase(std::find(scheduled.begin(),
-                scheduled.end(), *procs.rbegin()));
-                std::cout<<"READY: "<<procs.rbegin()->get()->proc_name<<"returned from BLOCK.\n";
-                if (scheduled.empty()){
+                                          scheduled.end(), *procs.rbegin()));
+                std::cout << "READY: " << procs.rbegin()->get()->proc_name << " returned from BLOCK.\n";
+                if (scheduled.empty())
+                {
                     /*SORT PROCS*/
-                    scheduleProc(running_ready, procs, scheduled); 
+                    std::stable_sort(procs.begin(), procs.end(),
+                     [](auto proc1, auto proc2) {
+                         if (proc1->arrival > proc2->arrival)
+                             return true;
+                         else if (proc1->proc_name > proc2->proc_name)
+                             return true;
+                     });
+                    scheduleProc(ready_running, procs, scheduled);
                 }
             }
             sleep(1);
@@ -72,20 +99,29 @@ int main(int argc, char* argv[]){
             data = readFromPipe(running_ready);
         } while (data == "empty");
         createProcs(data, procs);
-        scheduled.erase(std::find(scheduled.begin(),scheduled.end(), *procs.rbegin()));
-        
+        scheduled.erase(std::find(scheduled.begin(), scheduled.end(), *procs.rbegin()));
+
         if ((*procs.rbegin())->remaining_burst == 0)
             procs.pop_back();
 
-        if (procs.empty()){
-            std::cout<<"READY: Queue empty.\n";
-            break;
+        if (procs.empty())
+        {
+            std::cout << "READY: Queue empty.\n";
         }
-
-        /* SORT PROCS*/
-        scheduleProc(running_ready, procs, scheduled); 
+        else
+        {
+            /* SORT PROCS*/
+            std::stable_sort(procs.begin(), procs.end(),
+                     [](auto proc1, auto proc2) {
+                         if (proc1->arrival > proc2->arrival)
+                             return true;
+                         else if (proc1->proc_name > proc2->proc_name)
+                             return true;
+                     });
+            scheduleProc(ready_running, procs, scheduled);
+        }
     } while (!scheduled.empty());
-    
+
     close(new_ready);
     close(ready_running);
     close(running_ready);
@@ -96,9 +132,17 @@ int main(int argc, char* argv[]){
 void scheduleProc(const int& running_ready, p_vector& procs, p_vector& scheduled){
     std::string packet = createPacket(*procs.rbegin());
     writeToPipe(running_ready, packet);
-    std::cout<<"READY: "<<(*procs.rbegin())->proc_name<<"scheduled.\n";
+    std::cout<<"READY: "<<(*procs.rbegin())->proc_name<<" scheduled.\n";
     scheduled.push_back(*procs.rbegin());
     procs.pop_back(); 
+}
+
+void setNonBlock(const int& fd){
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
+    {
+        perror("Error ");
+        exit(0);
+    }
 }
 
 void incrementProcs(p_vector& procs){
@@ -143,7 +187,7 @@ std::string readFromPipe(int pipe_fd){
     char msg[256];
     size_t bytes = read(pipe_fd, msg, sizeof(msg));
     if (bytes == 0) return "closed";
-    if (bytes < 0) return "empty";
+    if (bytes == -1) return "empty";
     msg[bytes] = '\0';
     return msg;
 }
