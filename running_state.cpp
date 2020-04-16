@@ -4,19 +4,11 @@
 #include <iostream>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <sstream>
 #include <memory>
 #include <time.h>
-#include "Process.h"
-
-typedef std::shared_ptr<Process> process;
-
-std::string readFromPipe(int);
-void writeToPipe(int, std::string &);
-void createProc(std::string, process &);
-std::string createPacket(const process &);
-void setNonBlock(const int &);
+#include <utility>
+#include "utilities.h"
 
 int main(int argc, char *argv[])
 {
@@ -33,17 +25,23 @@ int main(int argc, char *argv[])
         std::cout << "Could not open running2ready in running.\n";
     int running_exit = open("running2exit", O_WRONLY);
 
-    size_t burst;
+    int time_quantum = std::stoi(utils::readFromPipe(ready_running));
+
+    size_t burst, remaining_burst;
     bool block;
     //setNonBlock(ready_running);
-    std::string data = readFromPipe(ready_running);
+    std::string data = utils::readFromPipe(ready_running);
 
     while (data != "closed")
     {
-        createProc(data, proc);
+        utils::createProc(data, proc);
         std::cout << "RUNNING: " << proc->proc_name << " scheduled.\n";
         burst = 0;
-        while (burst < proc->remaining_burst)
+
+        if (time_quantum == -1)
+            remaining_burst = proc->remaining_burst;
+
+        while (burst < remaining_burst)
         {
             sleep(1);
             burst++;
@@ -54,8 +52,8 @@ int main(int argc, char *argv[])
                 if (block)
                 {
                     proc->remaining_burst -= burst;
-                    data = createPacket(proc);
-                    writeToPipe(running_block, data);
+                    data = utils::createPacket(proc);
+                    utils::writeToPipe(running_block, data);
                     std::cout << "RUNNING: " << proc->proc_name << " BLOCKED.\n";
                     break;
                 }
@@ -65,67 +63,25 @@ int main(int argc, char *argv[])
         if (!block)
         {
             proc->remaining_burst -= burst;
-            data = createPacket(proc);
-            writeToPipe(running_ready, data);
+            data = utils::createPacket(proc);
+            utils::writeToPipe(running_ready, data);
             if (proc->remaining_burst == 0)
             {
-                writeToPipe(running_exit, data);
+                utils::writeToPipe(running_exit, data);
                 std::cout << "RUNNING: " << proc->proc_name << " EXITED.\n";
             }
         }
-        else{
+        else
+        {
             data = "NEXT";
-            writeToPipe(running_ready, data);
-        }        
-        data = readFromPipe(ready_running);
+            utils::writeToPipe(running_ready, data);
+        }
+        data = utils::readFromPipe(ready_running);
     }
-    
+    std::cout << "READY STATE CLOSED THE PIPE.\n";
     close(ready_running);
     close(running_block);
     close(running_exit);
     close(running_ready);
     exit(0);
-}
-
-void writeToPipe(int pipe_name, std::string& message)
-{
-    write(pipe_name, message.c_str(), message.size() + 1);
-}
-
-void setNonBlock(const int &fd)
-{
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
-    {
-        perror("Error ");
-        exit(0);
-    }
-}
-
-void createProc(std::string data, process &procs)
-{
-    std::istringstream stream(std::move(data));
-    std::string proc;
-    size_t arr, burst, rem_burst, turn, wait;
-    stream >> proc >> arr >> burst >> rem_burst >> turn >> wait;
-    procs = std::make_shared<Process>(proc, arr, burst, rem_burst, turn, wait);
-}
-
-std::string createPacket(const process &proc)
-{
-    return std::string(proc->proc_name + "\n" +
-                       std::to_string(proc->arrival) + "\n" +
-                       std::to_string(proc->burst) + "\n" +
-                       std::to_string(proc->remaining_burst) + "\n" +
-                       std::to_string(proc->turnaround) + "\n" +
-                       std::to_string(proc->waiting));
-}
-
-std::string readFromPipe(int pipe_name)
-{
-    char msg[256];
-    size_t bytes = read(pipe_name, msg, sizeof(msg));
-    if (bytes == 0)
-        return "closed";
-    msg[bytes] = '\0';
-    return msg;
 }

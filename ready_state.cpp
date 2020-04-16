@@ -4,25 +4,23 @@
 #include <iostream>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <vector>
 #include <sstream>
 #include <algorithm>
-#include "Process.h"
 #include <string.h>
 #include <memory>
+#include <map>
+#include "utilities.h"
 
-typedef std::vector<std::shared_ptr<Process>> p_vector;
+typedef bool (*scheduler)(const process &, const process &);
 
-void writeToPipe(int, std::string&);
-std::string readFromPipe(int);
-void incrementProcs(p_vector&);
-std::string createPacket(const std::shared_ptr<Process>&);
-void createProcs(std::string, p_vector&);
-void scheduleProc(const int&, p_vector&, p_vector&);
-void printVector(const p_vector&);
-void setNonBlock(const int&);
-void removeFromScheduled(p_vector&, Process&);
+void incrementProcs(p_vector &);
+void scheduleProc(const int &, p_vector &, p_vector &);
+void removeFromScheduled(p_vector &, Process &);
+bool FCFS(const process &, const process &);
+bool SJF(const process &, const process &);
+bool SRTF(const process &, const process &);
+bool RR(const process &, const process &);
 
 int main(int argc, char *argv[])
 {
@@ -39,69 +37,66 @@ int main(int argc, char *argv[])
     if (blocked_ready < 0)
         std::cout << "Could not open block2ready in ready.\n";
 
-    std::string scheduling_algo = readFromPipe(new_ready);
-    //std::cout<<scheduling_algo<<std::endl;
     p_vector procs;
     p_vector scheduled;
-    std::string packet;
+    std::string packet = "-1";
 
-    std::string data = readFromPipe(new_ready);
-   
-    //exit(0);
-    createProcs(data, procs);
-    std::stable_sort(procs.begin(), procs.end(),
-                     [](auto proc1, auto proc2) {
-                         if (proc1->arrival > proc2->arrival)
-                             return true;
-                         else if (proc1->proc_name > proc2->proc_name)
-                             return true;
-                     });
+    std::string scheduling_algo = utils::readFromPipe(new_ready);
+
+    if (scheduling_algo == "RR")
+        packet = utils::readFromPipe(new_ready);
+
+    /* SEND TIME QUANTUM*/
+    utils::writeToPipe(ready_running, packet);
+
+    std::map<std::string, scheduler> getAlgorithm = {
+        {"FCFS", &FCFS}, {"RR", &RR}, {"SJF", &SJF}, {"SRTF", &SRTF}};
+
+    scheduler comparator = getAlgorithm[scheduling_algo];
+
+    std::string data = utils::readFromPipe(new_ready);
+
+    utils::createProcs(data, procs);
+    std::stable_sort(procs.begin(), procs.end(), comparator);
 
     for (auto i : procs)
         std::cout << "READY: " << i->proc_name << " arrived from NEW.\n";
-    /* SORT THE PROC VECTOR IN DESCENDING ORDER HERE*/
 
     scheduleProc(ready_running, procs, scheduled);
-    setNonBlock(blocked_ready);
-    setNonBlock(running_ready);
+    utils::setNonBlock(blocked_ready);
+    utils::setNonBlock(running_ready);
     do
     {
         do
-        {   
-            data = readFromPipe(new_ready);
+        {
+            data = utils::readFromPipe(new_ready);
             if (data != "empty" && data != "closed")
             {
-                createProcs(data, procs);
+                utils::createProcs(data, procs);
                 std::cout << "READY: " << procs.rbegin()->get()->proc_name << " arrived from NEW.\n";
             }
-            data = readFromPipe(blocked_ready);
+            data = utils::readFromPipe(blocked_ready);
             if (data != "empty" && data != "closed")
             {
-                createProcs(data, procs);
+                utils::createProcs(data, procs);
                 removeFromScheduled(scheduled, *(*procs.rbegin()));
                 std::cout << "READY: " << procs.rbegin()->get()->proc_name << " returned from BLOCK.\n";
                 if (scheduled.empty())
                 {
-                    /*SORT PROCS*/
-                    std::stable_sort(procs.begin(), procs.end(),
-                     [](auto proc1, auto proc2) {
-                         if (proc1->arrival > proc2->arrival)
-                             return true;
-                         else if (proc1->proc_name > proc2->proc_name)
-                             return true;
-                     });
+                    std::stable_sort(procs.begin(), procs.end(), comparator);
                     scheduleProc(ready_running, procs, scheduled);
                 }
             }
             sleep(1);
             incrementProcs(procs);
-            data = readFromPipe(running_ready);
+            data = utils::readFromPipe(running_ready);
         } while (data == "empty");
-        
-        if (data != "NEXT"){
-            createProcs(data, procs);
+
+        if (data != "NEXT")
+        {
+            utils::createProcs(data, procs);
             removeFromScheduled(scheduled, *(*procs.rbegin()));
-        }   
+        }
 
         if ((*procs.rbegin())->remaining_burst == 0)
             procs.pop_back();
@@ -109,25 +104,19 @@ int main(int argc, char *argv[])
         if (procs.empty())
         {
             std::cout << "READY: QUEUE EMPTY.\n";
-            std::cout<<"REMAINING SCHEDULED: \n";
-            for (auto i : scheduled){
-                std::cout<<i->proc_name<<std::endl;
+            std::cout << "REMAINING SCHEDULED: \n";
+            for (auto i : scheduled)
+            {
+                std::cout << i->proc_name << std::endl;
             }
         }
         else
         {
-            /* SORT PROCS*/
-            std::stable_sort(procs.begin(), procs.end(),
-                     [](auto proc1, auto proc2) {
-                         if (proc1->arrival > proc2->arrival)
-                             return true;
-                         else if (proc1->proc_name > proc2->proc_name)
-                             return true;
-                     });
+            std::stable_sort(procs.begin(), procs.end(), comparator);
             scheduleProc(ready_running, procs, scheduled);
         }
     } while (!scheduled.empty() || !procs.empty());
-    std::cout<<"READY : ALL PROCESSES SCHEDULED.\n";
+    std::cout << "READY : ALL PROCESSES SCHEDULED.\n";
     close(new_ready);
     close(ready_running);
     close(running_ready);
@@ -135,73 +124,57 @@ int main(int argc, char *argv[])
     exit(0);
 }
 
-void removeFromScheduled(p_vector& scheduled, Process& proc){
-    for (auto i = scheduled.begin(); i < scheduled.end(); i++){
-        if (*(i->get()) == proc){
-            scheduled.erase(i);
-        } 
-    }
-}
-
-void scheduleProc(const int& ready_running, p_vector& procs, p_vector& scheduled){
-    std::string packet = createPacket(*procs.rbegin());
-    writeToPipe(ready_running, packet);
-    std::cout<<"READY: "<<(*procs.rbegin())->proc_name<<" scheduled.\n";
-    scheduled.push_back(*procs.rbegin());
-    procs.pop_back(); 
-}
-
-void setNonBlock(const int& fd){
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
+void removeFromScheduled(p_vector &scheduled, Process &proc)
+{
+    for (auto i = scheduled.begin(); i < scheduled.end(); i++)
     {
-        perror("Error ");
-        exit(0);
+        if (*(i->get()) == proc)
+        {
+            scheduled.erase(i);
+        }
     }
 }
 
-void incrementProcs(p_vector& procs){
-    for (auto i: procs){
+void scheduleProc(const int &ready_running, p_vector &procs, p_vector &scheduled)
+{
+    std::string packet = utils::createPacket(*procs.rbegin());
+    utils::writeToPipe(ready_running, packet);
+    std::cout << "READY: " << (*procs.rbegin())->proc_name << " scheduled.\n";
+    scheduled.push_back(*procs.rbegin());
+    procs.pop_back();
+}
+
+void incrementProcs(p_vector &procs)
+{
+    for (auto i : procs)
+    {
         i->turnaround++;
         i->waiting++;
     }
 }
 
-std::string createPacket(const std::shared_ptr<Process>& proc){
-    return std::string(proc->proc_name + "\n" +
-                std::to_string(proc->arrival) + "\n" +
-                std::to_string(proc->burst) + "\n" +
-                std::to_string(proc->remaining_burst) + "\n" +
-                std::to_string(proc->turnaround) + "\n" +
-                std::to_string(proc->waiting));
+bool FCFS(const process &proc1, const process &proc2)
+{
+    if (proc1->arrival > proc2->arrival)
+        return true;
+    else if (proc1->proc_name > proc2->proc_name)
+        return true;
 }
 
-void printVector(const p_vector& procs){
-    for (auto i: procs){
-        std::cout<<i->proc_name<<std::endl;
-        std::cout<<i->arrival<<std::endl;
-        std::cout<<i->burst<<std::endl;
-    }
+bool SRTF(const process &proc1, const process &proc2)
+{
+    if (proc1->remaining_burst > proc2->remaining_burst)
+        return true;
 }
 
-void createProcs(std::string data, p_vector& procs){
-    std::istringstream stream(std::move(data));
-    std::string proc; 
-    size_t arr, burst, rem_burst, turn, wait;
-    while(stream>>proc){
-        stream>>arr>>burst>>rem_burst>>turn>>wait;
-        procs.push_back(std::make_shared<Process>(proc, arr, burst, rem_burst, turn, wait));
-    }
+bool SJF(const process &proc1, const process &proc2)
+{
+    if (proc1->burst > proc2->burst)
+        return true;
 }
 
-void writeToPipe(int pipe_fd, std::string& message){
-    write(pipe_fd, message.c_str(), message.size()+1);
-}
-
-std::string readFromPipe(int pipe_fd){
-    char msg[256];
-    size_t bytes = read(pipe_fd, msg, sizeof(msg));
-    if (bytes == 0) return "closed";
-    if (bytes == -1) return "empty";
-    msg[bytes] = '\0';
-    return msg;
+bool RR(const process &proc1, const process &proc2)
+{
+    if (proc1->priority > proc2->priority)
+        return true;
 }
