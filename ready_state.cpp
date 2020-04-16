@@ -22,6 +22,7 @@ void createProcs(std::string, p_vector&);
 void scheduleProc(const int&, p_vector&, p_vector&);
 void printVector(const p_vector&);
 void setNonBlock(const int&);
+void removeFromScheduled(p_vector&, Process&);
 
 int main(int argc, char *argv[])
 {
@@ -39,13 +40,13 @@ int main(int argc, char *argv[])
         std::cout << "Could not open block2ready in ready.\n";
 
     std::string scheduling_algo = readFromPipe(new_ready);
-    
+    //std::cout<<scheduling_algo<<std::endl;
     p_vector procs;
     p_vector scheduled;
     std::string packet;
 
     std::string data = readFromPipe(new_ready);
-    //std::cout<<data<<std::endl;
+   
     //exit(0);
     createProcs(data, procs);
     std::stable_sort(procs.begin(), procs.end(),
@@ -55,11 +56,10 @@ int main(int argc, char *argv[])
                          else if (proc1->proc_name > proc2->proc_name)
                              return true;
                      });
-                     
+
     for (auto i : procs)
         std::cout << "READY: " << i->proc_name << " arrived from NEW.\n";
     /* SORT THE PROC VECTOR IN DESCENDING ORDER HERE*/
-
 
     scheduleProc(ready_running, procs, scheduled);
     setNonBlock(blocked_ready);
@@ -78,8 +78,7 @@ int main(int argc, char *argv[])
             if (data != "empty" && data != "closed")
             {
                 createProcs(data, procs);
-                scheduled.erase(std::find(scheduled.begin(),
-                                          scheduled.end(), *procs.rbegin()));
+                removeFromScheduled(scheduled, *(*procs.rbegin()));
                 std::cout << "READY: " << procs.rbegin()->get()->proc_name << " returned from BLOCK.\n";
                 if (scheduled.empty())
                 {
@@ -98,15 +97,22 @@ int main(int argc, char *argv[])
             incrementProcs(procs);
             data = readFromPipe(running_ready);
         } while (data == "empty");
-        createProcs(data, procs);
-        scheduled.erase(std::find(scheduled.begin(), scheduled.end(), *procs.rbegin()));
+        
+        if (data != "NEXT"){
+            createProcs(data, procs);
+            removeFromScheduled(scheduled, *(*procs.rbegin()));
+        }   
 
         if ((*procs.rbegin())->remaining_burst == 0)
             procs.pop_back();
 
         if (procs.empty())
         {
-            std::cout << "READY: Queue empty.\n";
+            std::cout << "READY: QUEUE EMPTY.\n";
+            std::cout<<"REMAINING SCHEDULED: \n";
+            for (auto i : scheduled){
+                std::cout<<i->proc_name<<std::endl;
+            }
         }
         else
         {
@@ -120,8 +126,8 @@ int main(int argc, char *argv[])
                      });
             scheduleProc(ready_running, procs, scheduled);
         }
-    } while (!scheduled.empty());
-
+    } while (!scheduled.empty() || !procs.empty());
+    std::cout<<"READY : ALL PROCESSES SCHEDULED.\n";
     close(new_ready);
     close(ready_running);
     close(running_ready);
@@ -129,9 +135,17 @@ int main(int argc, char *argv[])
     exit(0);
 }
 
-void scheduleProc(const int& running_ready, p_vector& procs, p_vector& scheduled){
+void removeFromScheduled(p_vector& scheduled, Process& proc){
+    for (auto i = scheduled.begin(); i < scheduled.end(); i++){
+        if (*(i->get()) == proc){
+            scheduled.erase(i);
+        } 
+    }
+}
+
+void scheduleProc(const int& ready_running, p_vector& procs, p_vector& scheduled){
     std::string packet = createPacket(*procs.rbegin());
-    writeToPipe(running_ready, packet);
+    writeToPipe(ready_running, packet);
     std::cout<<"READY: "<<(*procs.rbegin())->proc_name<<" scheduled.\n";
     scheduled.push_back(*procs.rbegin());
     procs.pop_back(); 

@@ -23,7 +23,7 @@ void printVector(const p_vector &);
 
 int main(int argc, char *argv[])
 {
-    int new_ready = open("new2ready", O_WRONLY);
+    int new_ready = open("new2ready", O_WRONLY | O_APPEND);
     if (new_ready < 0)
         std::cout << "Could not open new2ready in new.\n";
 
@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
     std::string data = readFromFile(proc_file);
     close(proc_file);
 
+
     createProcs(std::move(data), scheduling_algo, procs);
     writeToPipe(new_ready, scheduling_algo);
 
@@ -50,7 +51,7 @@ int main(int argc, char *argv[])
                          else if (proc1->proc_name < proc2->proc_name)
                              return true;
                      });
-
+    
     size_t time = 0;
     for (auto i : procs)
     {
@@ -60,6 +61,7 @@ int main(int argc, char *argv[])
             ++time;
         }
         std::string packet = createPacket(i);
+        //std::cout<<packet<<std::endl;
         writeToPipe(new_ready, packet);
         std::cout << "NEW: " << i->proc_name << " admitted to READY.\n";
     }

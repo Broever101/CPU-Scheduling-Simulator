@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     int running_exit = open("running2exit", O_WRONLY);
 
     size_t burst;
-    bool block = false;
+    bool block;
     //setNonBlock(ready_running);
     std::string data = readFromPipe(ready_running);
 
@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
         {
             sleep(1);
             burst++;
+            block = false;
             if (burst == 5)
             {
                 block = rand() % 2;
@@ -65,17 +66,20 @@ int main(int argc, char *argv[])
         {
             proc->remaining_burst -= burst;
             data = createPacket(proc);
+            writeToPipe(running_ready, data);
+            if (proc->remaining_burst == 0)
+            {
+                writeToPipe(running_exit, data);
+                std::cout << "RUNNING: " << proc->proc_name << " EXITED.\n";
+            }
         }
-
-        if (proc->remaining_burst == 0)
-        {
-            writeToPipe(running_exit, data);
-            std::cout << "RUNNING: " << proc->proc_name << " EXITED.\n";
-        }
-
-        writeToPipe(running_ready, data);
+        else{
+            data = "NEXT";
+            writeToPipe(running_ready, data);
+        }        
         data = readFromPipe(ready_running);
     }
+    
     close(ready_running);
     close(running_block);
     close(running_exit);
@@ -83,7 +87,7 @@ int main(int argc, char *argv[])
     exit(0);
 }
 
-void writeToPipe(int pipe_name, std::string &message)
+void writeToPipe(int pipe_name, std::string& message)
 {
     write(pipe_name, message.c_str(), message.size() + 1);
 }

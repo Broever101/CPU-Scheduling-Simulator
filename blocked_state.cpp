@@ -44,12 +44,18 @@ int main(int argc, char *argv[])
             createProcs(data, blocked_queue);
             std::cout << "BLOCKED: " << blocked_queue.rbegin()->get()->proc_name << " received.\n";
             blocked_queue.rbegin()->get()->block_time = rand() % 5 + 15;
+            std::cout<<"BLOCKED: "<<blocked_queue.rbegin()->get()->block_time<<" block time for "<<
+            blocked_queue.rbegin()->get()->proc_name<<std::endl;
         }
         sleep(1);
         updateProcs(blocked_queue);
         releaseProc(block_ready, blocked_queue);
         data = readFromPipe(running_block);
     }
+    
+    close(running_block);
+    close(block_ready);
+    exit(0);
 }
 
 void createProcs(std::string data, p_vector &procs)
@@ -112,7 +118,7 @@ std::string readFromPipe(int pipe_fd)
     size_t bytes = read(pipe_fd, msg, sizeof(msg));
     if (bytes == 0)
         return "closed";
-    if (bytes < 0)
+    if (bytes == -1)
         return "empty";
     msg[bytes] = '\0';
     return msg;
