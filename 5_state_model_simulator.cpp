@@ -35,7 +35,7 @@ int createNewFifo(const char *fifoName, int permissions)
     return (0);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     std::string pipe_names[6] = {"new2ready", "ready2running", "running2ready",
                                  "running2block", "block2ready", "running2exit"};
@@ -47,11 +47,14 @@ int main()
             std::cout << pipe << " pipe created.\n";
     }
 
+    std::cout<<std::endl;
+
     char *args[] = {NULL};
+    auto file_name = argv; 
     pid_t new_state = fork();
     if (new_state == 0)
     {
-        execvp("./new_state", args);
+        execvp("./new_state", file_name);
         std::cout << "NEW STATE EXEC FAILED\n";
     }
     else if (new_state > 0)
