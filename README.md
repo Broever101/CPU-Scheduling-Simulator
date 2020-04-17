@@ -23,34 +23,21 @@ The sample_file.txt will contain information about processes.
 *Sample format of FCFS/SJF/STRF*
 
 FCFS
-
 Proc1
-
 Arrival time
-
 Burst time
-
 Proc2
-
 Arrival time
-
-Burst time*
+Burst time
 
 *Sample format of RR*
 
 RR
-
 Quantum
-
 Proc1
-
 Arrival time
-
 Burst time
-
 Proc2
-
 Arrival time
-
-Burst time*
+Burst time
 
