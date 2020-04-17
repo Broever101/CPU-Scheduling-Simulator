@@ -25,19 +25,8 @@ std::string utils::createPacket(const process &proc)
                        std::to_string(proc->burst) + "\n" +
                        std::to_string(proc->remaining_burst) + "\n" +
                        std::to_string(proc->turnaround) + "\n" +
-                       std::to_string(proc->waiting));
-}
-
-void utils::createProcs(std::string data, p_vector &procs)
-{
-    std::istringstream stream(std::move(data));
-    std::string proc;
-    size_t arr, burst, rem_burst, turn, wait;
-    while (stream >> proc)
-    {
-        stream >> arr >> burst >> rem_burst >> turn >> wait;
-        procs.push_back(std::make_shared<Process>(proc, arr, burst, rem_burst, turn, wait));
-    }
+                       std::to_string(proc->waiting)) + "\n" + 
+                       std::to_string(proc->block_type);
 }
 
 void utils::printVector(const p_vector &procs)
@@ -67,6 +56,18 @@ std::string utils::readFromFile(const int &fd)
     return std::move(data);
 }
 
+void utils::createProcs(std::string data, p_vector &procs)
+{
+    std::istringstream stream(std::move(data));
+    std::string proc;
+    size_t arr, burst, rem_burst, turn, wait, block;
+    while (stream >> proc)
+    {
+        stream >> arr >> burst >> rem_burst >> turn >> wait>>block;
+        procs.push_back(std::make_shared<Process>(proc, arr, burst, rem_burst, turn, wait, block));
+    }
+}
+
 void utils::createProcs(std::string data, std::string &algorithm, std::string &time_quantum,
                         p_vector &procs)
 {
@@ -80,7 +81,7 @@ void utils::createProcs(std::string data, std::string &algorithm, std::string &t
     {
         stream >> arr;
         stream >> burst;
-        procs.push_back(std::make_shared<Process>(proc, arr, burst, burst, 0, 0));
+        procs.push_back(std::make_shared<Process>(proc, arr, burst, burst, 0, 0, -1));
     }
 }
 
@@ -88,7 +89,7 @@ void utils::createProc(std::string data, process &procs)
 {
     std::istringstream stream(std::move(data));
     std::string proc;
-    size_t arr, burst, rem_burst, turn, wait;
-    stream >> proc >> arr >> burst >> rem_burst >> turn >> wait;
-    procs = std::make_shared<Process>(proc, arr, burst, rem_burst, turn, wait);
+    size_t arr, burst, rem_burst, turn, wait, block;
+    stream >> proc >> arr >> burst >> rem_burst >> turn >> wait>>block;
+    procs = std::make_shared<Process>(proc, arr, burst, rem_burst, turn, wait, block);
 }

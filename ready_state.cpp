@@ -10,52 +10,69 @@
 #include <string.h>
 #include <memory>
 #include <map>
+#include <pthread.h>
 #include "utilities.h"
 
 typedef bool (*scheduler)(const process &, const process &);
 
+pthread_t new_thread, block_thread, terminate_thread;
+
 void incrementProcs(p_vector &);
 void scheduleProc(const int &, p_vector &, p_vector &);
 void removeFromScheduled(p_vector &, Process &);
+void* readFromBlock(void*);
+void* readFromNew(void*);
+void* terminate(void*);
 bool FCFS(const process &, const process &);
 bool SJF(const process &, const process &);
 bool SRTF(const process &, const process &);
 bool RR(const process &, const process &);
 
+struct ThreadDumps{
+    int& fd;
+    std::string& data;
+    p_vector& procs;
+    p_vector& scheduled;
+    ThreadDumps(int& fd, std::string& data, p_vector& procs, p_vector& scheduled):
+    fd(fd), data(data), procs(procs), scheduled(scheduled) {}
+};
+
 int main(int argc, char *argv[])
 {
-    int new_ready = open("new2ready", O_RDONLY);
+    const int new_ready = open("new2ready", O_RDONLY);
     if (new_ready < 0)
         std::cout << "Could not open new2ready in ready.\n";
-    int ready_running = open("ready2running", O_WRONLY);
+    const int ready_running = open("ready2running", O_WRONLY);
     if (ready_running < 0)
         std::cout << "Could not open ready2running in ready.\n";
-    int running_ready = open("running2ready", O_RDONLY);
+    const int running_ready = open("running2ready", O_RDONLY);
     if (running_ready < 0)
         std::cout << "Could not open running2ready in ready.\n";
-    int blocked_ready = open("block2ready", O_RDONLY);
+    const int blocked_ready = open("block2ready", O_RDONLY);
     if (blocked_ready < 0)
         std::cout << "Could not open block2ready in ready.\n";
 
     p_vector procs;
     p_vector scheduled;
-    std::string packet = "-1";
+    std::string data = "-1";
+    ThreadDumps dumpForNew(const_cast<int&>(new_ready), data, procs, scheduled);
+    ThreadDumps dumpForBlock(const_cast<int&>(blocked_ready), data, procs, scheduled);
 
     std::string scheduling_algo = utils::readFromPipe(new_ready);
 
-    //std::cout<<scheduling_algo<<std::endl;
-    packet = utils::readFromPipe(new_ready);
+    data = utils::readFromPipe(new_ready);
 
     /* SEND TIME QUANTUM*/
-    std::cout<<"SENDING QUANTUM: "<<packet<<std::endl;
-    utils::writeToPipe(ready_running, packet);
+    std::cout<<"SENDING QUANTUM: "<<data<<std::endl;
+    utils::writeToPipe(ready_running, data);
 
     std::map<std::string, scheduler> getAlgorithm = {
         {"FCFS", &FCFS}, {"RR", &RR}, {"SJF", &SJF}, {"SRTF", &SRTF}};
 
+    /*SELECT SCHEDULING ALGORITHM*/
     scheduler comparator = getAlgorithm[scheduling_algo];
 
-    std::string data = utils::readFromPipe(new_ready);
+    data = utils::readFromPipe(new_ready);
 
     utils::createProcs(data, procs);
     std::stable_sort(procs.begin(), procs.end(), comparator);
@@ -70,24 +87,15 @@ int main(int argc, char *argv[])
     {
         do
         {
-            data = utils::readFromPipe(new_ready);
-            if (data != "empty" && data != "closed")
+            pthread_create(&new_thread, NULL, &readFromNew, &dumpForNew);
+            pthread_create(&block_thread, NULL, &readFromBlock, &dumpForBlock);
+            pthread_join(block_thread, NULL);
+            if (scheduled.empty())
             {
-                utils::createProcs(data, procs);
-                std::cout << "READY: " << procs.rbegin()->get()->proc_name << " arrived from NEW.\n";
+                std::stable_sort(procs.begin(), procs.end(), comparator);
+                scheduleProc(ready_running, procs, scheduled);
             }
-            data = utils::readFromPipe(blocked_ready);
-            if (data != "empty" && data != "closed")
-            {
-                utils::createProcs(data, procs);
-                removeFromScheduled(scheduled, *(*procs.rbegin()));
-                std::cout << "READY: " << procs.rbegin()->get()->proc_name << " returned from BLOCK.\n";
-                if (scheduled.empty())
-                {
-                    std::stable_sort(procs.begin(), procs.end(), comparator);
-                    scheduleProc(ready_running, procs, scheduled);
-                }
-            }
+            
             sleep(1);
             incrementProcs(procs);
             data = utils::readFromPipe(running_ready);
@@ -98,14 +106,14 @@ int main(int argc, char *argv[])
             utils::createProcs(data, procs);
             removeFromScheduled(scheduled, *(*procs.rbegin()));
         }
-
-        if ((*procs.rbegin())->remaining_burst == 0)
-            procs.pop_back();
+        
+        if (!procs.empty() && (*procs.rbegin())->remaining_burst == 0)
+                procs.pop_back();
 
         if (procs.empty())
         {
             std::cout << "READY: QUEUE EMPTY.\n";
-            std::cout << "REMAINING SCHEDULED: \n";
+            std::cout << "READY: REMAINING PROCESSES IN SCHEDULED: \n";
             for (auto i : scheduled)
             {
                 std::cout << i->proc_name << std::endl;
@@ -116,13 +124,72 @@ int main(int argc, char *argv[])
             std::stable_sort(procs.begin(), procs.end(), comparator);
             scheduleProc(ready_running, procs, scheduled);
         }
+        pthread_create(&terminate_thread, NULL, &terminate, &dumpForNew);
+        pthread_join(terminate_thread, NULL);
+        std::cout << "READY: PROCESSES IN SCHEDULED QUEUE: \n";
+            for (auto i : scheduled)
+            {
+                std::cout << i->proc_name << std::endl;
+            }
     } while (!(scheduled.empty() && procs.empty()));
+    
     std::cout << "READY : ALL PROCESSES SCHEDULED.\n";
     close(new_ready);
     close(ready_running);
     close(running_ready);
     close(blocked_ready);
-    exit(0);
+    pthread_exit(NULL);
+}
+
+void* readFromNew(void* dump){
+    ThreadDumps* dumpForNew = (struct ThreadDumps*) dump;
+    dumpForNew->data = utils::readFromPipe(dumpForNew->fd);
+    if (dumpForNew->data != "empty" && dumpForNew->data != "closed")
+    {
+        utils::createProcs(dumpForNew->data, dumpForNew->procs);
+        std::cout << "READY: " << dumpForNew->procs.rbegin()->get()->proc_name << " arrived from NEW.\n";
+    }
+    pthread_exit(NULL);
+}
+
+void *terminate(void *dump)
+{
+    ThreadDumps *dumpForNew = (struct ThreadDumps *)dump;
+    if (dumpForNew->procs.empty() && dumpForNew->scheduled.empty())
+    {
+        std::cout << "READY: Waiting for NEW processes.\n";
+        fcntl(dumpForNew->fd, F_SETFL, fcntl(dumpForNew->fd, F_GETFL) & ~O_NONBLOCK);
+        dumpForNew->data = utils::readFromPipe(dumpForNew->fd);
+        if (dumpForNew->data == "closed")
+        {
+            std::cout << "READY: No more incoming processes.\n";
+            pthread_exit(NULL);
+        }
+        else
+        {
+            utils::createProcs(dumpForNew->data, dumpForNew->procs);
+            std::cout << "READY: " << dumpForNew->procs.rbegin()->get()->proc_name
+                      << " arrived from NEW.\n";
+            utils::setNonBlock(dumpForNew->fd);
+            pthread_exit(NULL);
+        }
+    }
+    pthread_exit(NULL);
+}
+
+
+void* readFromBlock(void* dump){
+    pthread_join(new_thread, NULL);
+    ThreadDumps* dumpForBlock = (struct ThreadDumps*) dump;
+    dumpForBlock->data = utils::readFromPipe(dumpForBlock->fd);
+    if (dumpForBlock->data != "empty" && dumpForBlock->data != "closed")
+    {
+        utils::createProcs(dumpForBlock->data, dumpForBlock->procs);
+        removeFromScheduled(dumpForBlock->scheduled, *(*dumpForBlock->procs.rbegin()));
+        std::cout << "READY: " << dumpForBlock->procs.rbegin()->get()->proc_name << " returned from BLOCK.\n";
+        
+    }
+    pthread_exit(NULL);
 }
 
 void removeFromScheduled(p_vector &scheduled, Process &proc)

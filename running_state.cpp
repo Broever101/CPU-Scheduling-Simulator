@@ -11,7 +11,7 @@
 #include "utilities.h"
 
 int main(int argc, char *argv[])
-{
+{   
     srand(time(NULL));
     process proc(nullptr);
     int ready_running = open("ready2running", O_RDONLY);
@@ -27,10 +27,11 @@ int main(int argc, char *argv[])
 
     int time_quantum = std::stoi(utils::readFromPipe(ready_running));
     std::cout<<"Time quantum received in RUNNING : "<<time_quantum<<"\n";
-    
+
     size_t burst, remaining_burst;
     bool block;
     //setNonBlock(ready_running);
+    std::string block_type[3] = {"INPUT", "OUTPUT", "PRINTER"};
     std::string data = utils::readFromPipe(ready_running);
 
     while (data != "closed")
@@ -60,9 +61,13 @@ int main(int argc, char *argv[])
                 if (block)
                 {
                     proc->remaining_burst -= burst;
+                    proc->block_type = rand() % 3;
                     data = utils::createPacket(proc);
                     utils::writeToPipe(running_block, data);
-                    std::cout << "RUNNING: " << proc->proc_name << " BLOCKED.\n";
+                    std::cout << "RUNNING: " << proc->proc_name << " BLOCKED for "<<
+                    block_type[proc->block_type]<<".\n";
+                    data = "NEXT";
+                    utils::writeToPipe(running_ready, data);
                     break;
                 }
             }
@@ -79,14 +84,9 @@ int main(int argc, char *argv[])
                 std::cout << "RUNNING: " << proc->proc_name << " EXITED.\n";
             }
         }
-        else
-        {
-            data = "NEXT";
-            utils::writeToPipe(running_ready, data);
-        }
         data = utils::readFromPipe(ready_running);
     }
-    std::cout << "READY STATE CLOSED THE PIPE.\n";
+    std::cout << "RUNNING: READY STATE CLOSED THE PIPE.\n";
     close(ready_running);
     close(running_block);
     close(running_exit);
