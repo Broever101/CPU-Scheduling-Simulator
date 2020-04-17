@@ -20,7 +20,7 @@ To run the program:
 ```
 
 The sample_file.txt will contain information about processes.
-*Sample format of FCFS/SJF/STRF
+*Sample format of FCFS/SJF/STRF*
 
 FCFS
 
@@ -36,7 +36,7 @@ Arrival time
 
 Burst time*
 
-*Sample format of RR
+*Sample format of RR*
 
 RR
 
