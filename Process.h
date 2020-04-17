@@ -15,4 +15,8 @@ public:
     {
         return this->proc_name == obj.proc_name;
     }
+    bool operator!=(const Process &obj)
+    {
+        return this->proc_name != obj.proc_name;
+    }
 };

@@ -26,7 +26,8 @@ int main(int argc, char *argv[])
     int running_exit = open("running2exit", O_WRONLY);
 
     int time_quantum = std::stoi(utils::readFromPipe(ready_running));
-
+    std::cout<<"Time quantum received in RUNNING : "<<time_quantum<<"\n";
+    
     size_t burst, remaining_burst;
     bool block;
     //setNonBlock(ready_running);
@@ -40,7 +41,14 @@ int main(int argc, char *argv[])
 
         if (time_quantum == -1)
             remaining_burst = proc->remaining_burst;
-
+        else
+        {
+            if (time_quantum < proc->remaining_burst)
+                remaining_burst = time_quantum;
+            else
+                remaining_burst = proc->remaining_burst;
+        }
+        
         while (burst < remaining_burst)
         {
             sleep(1);

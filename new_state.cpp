@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 
     p_vector procs;
     std::string scheduling_algo;
-    std::string time_quantum;
+    std::string time_quantum = "-1";
 
     std::string file_path = argv[1];
    
@@ -37,7 +37,9 @@ int main(int argc, char *argv[])
 
     utils::createProcs(std::move(data), scheduling_algo, time_quantum, procs);
     utils::writeToPipe(new_ready, scheduling_algo);
+    sleep(1);
     utils::writeToPipe(new_ready, time_quantum);
+    sleep(1);
 
     std::stable_sort(procs.begin(), procs.end(),
                      [](auto proc1, auto proc2) {
@@ -59,6 +61,7 @@ int main(int argc, char *argv[])
         //std::cout<<packet<<std::endl;
         utils::writeToPipe(new_ready, packet);
         std::cout << "NEW: " << i->proc_name << " admitted to READY.\n";
+        sleep(1);
     }
     close(new_ready);
     exit(0);

@@ -43,10 +43,11 @@ int main(int argc, char *argv[])
 
     std::string scheduling_algo = utils::readFromPipe(new_ready);
 
-    if (scheduling_algo == "RR")
-        packet = utils::readFromPipe(new_ready);
+    //std::cout<<scheduling_algo<<std::endl;
+    packet = utils::readFromPipe(new_ready);
 
     /* SEND TIME QUANTUM*/
+    std::cout<<"SENDING QUANTUM: "<<packet<<std::endl;
     utils::writeToPipe(ready_running, packet);
 
     std::map<std::string, scheduler> getAlgorithm = {
@@ -115,7 +116,7 @@ int main(int argc, char *argv[])
             std::stable_sort(procs.begin(), procs.end(), comparator);
             scheduleProc(ready_running, procs, scheduled);
         }
-    } while (!scheduled.empty() || !procs.empty());
+    } while (!(scheduled.empty() && procs.empty()));
     std::cout << "READY : ALL PROCESSES SCHEDULED.\n";
     close(new_ready);
     close(ready_running);
