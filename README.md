@@ -14,6 +14,7 @@ g++ -o 5_states 5_state_model_simulator.cpp
 ```
 
 To run the program:
+
 ```./5_states sample_file.txt
 ```
 
