@@ -2,7 +2,7 @@
 
 This is a work in progress. Or not.
 
-The idea is to simulate the scheduling of processes in a uniprocessor environment using all the outdated C libraries for linux (it was a requirement of the assignment). 
+The idea is to simulate the scheduling of processes in a uniprocessor environment using all the outdated C libraries for linux (it was a requirement of the assignment, thanks to which I had to commit a lot of sins). 
 
 To use the program, build the state processes as follows:
 ```g++ -o new_state utilities.cpp new_state.cpp
