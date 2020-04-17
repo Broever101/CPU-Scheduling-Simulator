@@ -15,26 +15,42 @@ g++ -o 5_states 5_state_model_simulator.cpp
 
 To run the program:
 
-```./5_states sample_file.txt
+```
+./5_states sample_file.txt
 ```
 
 The sample_file.txt will contain information about processes.
 *Sample format of FCFS/SJF/STRF
+
 FCFS
+
 Proc1
+
 Arrival time
+
 Burst time
+
 Proc2
+
 Arrival time
+
 Burst time*
 
 *Sample format of RR
+
 RR
+
 Quantum
+
 Proc1
+
 Arrival time
+
 Burst time
+
 Proc2
+
 Arrival time
+
 Burst time*
 
