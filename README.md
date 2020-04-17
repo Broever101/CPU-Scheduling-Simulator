@@ -31,7 +31,7 @@ Proc2
 Arrival time  
 Burst time  
 
-*Sample format of RR*
+*Sample format of RR*  
 RR  
 Quantum  
 Proc1  
